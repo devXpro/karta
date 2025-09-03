@@ -4,7 +4,6 @@ services:
   karta-bot:
     restart: always
     build: .
-    network_mode: service:surfshark
     logging:
       driver: json-file
       options:
@@ -13,6 +12,8 @@ services:
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       DATABASE_PATH: /data/karta.db
+      USE_SOCKS5_PROXY: "true"
+      SOCKS5_PROXY_URL: "surfshark:1080"
     volumes:
       - ./data:/data
     depends_on:
@@ -32,6 +33,7 @@ services:
       - SURFSHARK_COUNTRY=pl
       - CONNECTION_TYPE=udp
       - LAN_NETWORK=192.168.0.0/24
+      - ENABLE_SOCKS_SERVER=true
     cap_add:
       - NET_ADMIN
     devices:

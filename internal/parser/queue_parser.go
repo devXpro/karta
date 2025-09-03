@@ -6,11 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/net/proxy"
 	"karta/internal/models"
 )
 
@@ -50,6 +54,40 @@ func NewQueueParser() *QueueParser {
 	// Create HTTP client with insecure TLS config for problematic SSL certificates
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	// Check if SOCKS5 proxy should be used
+	useSocks5 := os.Getenv("USE_SOCKS5_PROXY")
+	socks5URL := os.Getenv("SOCKS5_PROXY_URL")
+
+	if useSocks5 == "true" && socks5URL != "" {
+		log.Printf("Configuring SOCKS5 proxy: %s", socks5URL)
+
+		// Parse SOCKS5 proxy URL
+		proxyURL, err := url.Parse("socks5://" + socks5URL)
+		if err != nil {
+			log.Printf("Failed to parse SOCKS5 proxy URL: %v", err)
+		} else {
+			// Create SOCKS5 dialer
+			dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
+			if err != nil {
+				log.Printf("Failed to create SOCKS5 dialer: %v", err)
+			} else {
+				// Use SOCKS5 proxy for transport
+				tr.Dial = func(network, addr string) (net.Conn, error) {
+					// Only use proxy for DUW requests
+					if strings.Contains(addr, "rezerwacje.duw.pl") {
+						log.Printf("Using SOCKS5 proxy for DUW request to: %s", addr)
+						return dialer.Dial(network, addr)
+					}
+					// Use direct connection for everything else
+					return net.Dial(network, addr)
+				}
+				log.Println("SOCKS5 proxy configured successfully for DUW requests")
+			}
+		}
+	} else {
+		log.Println("SOCKS5 proxy not configured, using direct connection")
 	}
 
 	return &QueueParser{

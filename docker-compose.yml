@@ -17,6 +17,7 @@ services:
       SOCKS5_PROXY_PORT: ${SOCKS5_PROXY_PORT}
       SOCKS5_PROXY_USER: ${SOCKS5_PROXY_USER}
       SOCKS5_PROXY_PASSWORD: ${SOCKS5_PROXY_PASSWORD}
+      TZ: Europe/Warsaw
     volumes:
       - ./data:/data
     healthcheck:

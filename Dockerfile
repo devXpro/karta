@@ -21,8 +21,12 @@ RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o karta cmd/main.go
 # Final stage
 FROM alpine:latest
 
-# Install ca-certificates for HTTPS requests and sqlite
-RUN apk --no-cache add ca-certificates sqlite
+# Install ca-certificates for HTTPS requests, sqlite and timezone data
+RUN apk --no-cache add ca-certificates sqlite tzdata
+
+# Set timezone to Europe/Warsaw (Poland, UTC+2)
+ENV TZ=Europe/Warsaw
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /root/
 

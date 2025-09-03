@@ -135,7 +135,7 @@ func (q *QueueData) FormatTelegramMessageWithTicket(changes *QueueChanges, userT
 	// Show last sync time and last change time
 	builder.WriteString(fmt.Sprintf("\n🔄 *Синхронизация:* %s", q.LastUpdated.Format("15:04:05")))
 	if !q.LastChanged.IsZero() {
-		builder.WriteString(fmt.Sprintf("\n⏰ *Последнее изменение:* %s", q.LastChanged.Format("15:04:05")))
+		builder.WriteString(fmt.Sprintf("\n⏰ *Изменение:* %s", q.LastChanged.Format("15:04:05")))
 	}
 
 	return builder.String()

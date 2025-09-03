@@ -108,7 +108,6 @@ func (q *QueueData) FormatTelegramMessageWithTicket(changes *QueueChanges, userT
 	formatField("Ожидает", q.WaitingClients, "waiting_clients")
 	formatField("Стоек", q.Workplaces, "workplaces")
 	formatField("Среднее время", q.AvgServiceTime, "avg_service_time")
-	formatField("Всего времени", q.AvgWaitTime, "avg_wait_time")
 	formatField("Последний билет", q.LastTicket, "last_ticket")
 	formatField("Осталось билетов", q.TicketsLeft, "tickets_left")
 	formatField("Статус очереди", q.Status, "status")
@@ -222,8 +221,21 @@ func (q *QueueData) CalculateWaitTime(userTicket string) (int, error) {
 		return 0, fmt.Errorf("invalid service time format: %w", err)
 	}
 
-	// Calculate estimated wait time
-	estimatedWaitMinutes := ticketsRemaining * avgServiceMinutes
+	// Parse number of workplaces (e.g., "3" -> 3)
+	workplaces, err := parseWorkplaces(q.Workplaces)
+	if err != nil {
+		return 0, fmt.Errorf("invalid workplaces format: %w", err)
+	}
+
+	// Ensure we have at least 1 workplace to avoid division by zero
+	if workplaces <= 0 {
+		workplaces = 1
+	}
+
+	// Calculate estimated wait time considering parallel workplaces
+	// Total time = (tickets remaining * service time per ticket) / number of parallel workplaces
+	totalServiceTime := ticketsRemaining * avgServiceMinutes
+	estimatedWaitMinutes := totalServiceTime / workplaces
 
 	return estimatedWaitMinutes, nil
 }
@@ -259,6 +271,25 @@ func parseServiceTime(serviceTime string) (int, error) {
 
 	if numStr == "" {
 		return 0, fmt.Errorf("no number found in service time: %s", serviceTime)
+	}
+
+	return strconv.Atoi(numStr)
+}
+
+// parseWorkplaces extracts number from workplaces string
+func parseWorkplaces(workplaces string) (int, error) {
+	// Extract number from strings like "3" or "5 стоек"
+	numStr := ""
+	for _, char := range workplaces {
+		if char >= '0' && char <= '9' {
+			numStr += string(char)
+		} else if numStr != "" {
+			break // Stop at first non-digit after finding digits
+		}
+	}
+
+	if numStr == "" {
+		return 0, fmt.Errorf("no number found in workplaces: %s", workplaces)
 	}
 
 	return strconv.Atoi(numStr)

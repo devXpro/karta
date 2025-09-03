@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  karta-bot:
+    restart: always
+    build: .
+    network_mode: service:surfshark
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      DATABASE_PATH: /data/karta.db
+    volumes:
+      - ./data:/data
+    depends_on:
+      - surfshark
+    healthcheck:
+      test: ["CMD", "pgrep", "karta"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  surfshark:
+    image: ilteoood/docker-surfshark
+    container_name: surfshark
+    environment:
+      - SURFSHARK_USER=${SURFSHARK_USER}
+      - SURFSHARK_PASSWORD=${SURFSHARK_PASSWORD}
+      - SURFSHARK_COUNTRY=pl
+      - CONNECTION_TYPE=udp
+      - LAN_NETWORK=192.168.0.0/24
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"

@@ -1,0 +1,40 @@
+# Binaries
+karta
+*.exe
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+.env.local
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Logs
+*.log
+
+# Test files
+*_test.go
+test_*.go
+
+# Documentation
+README.md
+*.md
+
+# Data directory
+data/
+.docker/

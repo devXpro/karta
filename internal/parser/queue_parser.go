@@ -2,6 +2,7 @@ package parser
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -46,9 +47,15 @@ type QueueParser struct {
 
 // NewQueueParser creates a new queue parser instance
 func NewQueueParser() *QueueParser {
+	// Create HTTP client with insecure TLS config for problematic SSL certificates
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
 	return &QueueParser{
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: tr,
 		},
 	}
 }

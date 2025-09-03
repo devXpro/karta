@@ -1,132 +1,231 @@
 # Karta Queue Monitor
 
-Go-приложение для мониторинга очередей на сайте DUW (Dolnośląski Urząd Wojewódzki) с уведомлениями через Telegram-бота.
+A Go application for monitoring queues on the DUW (Dolnośląski Urząd Wojewódzki) website with notifications via Telegram bot.
 
-## Описание
+## Description
 
-Приложение отслеживает очередь "odbiór karty" для города Вроцлав через JSON API сайта DUW и отправляет уведомления пользователям Telegram-бота при изменении данных.
+The application tracks the "odbiór karty" (card pickup) queue for Wrocław city through the DUW website's JSON API and sends notifications to Telegram bot users when data changes.
 
 **API Endpoint:** `https://rezerwacje.duw.pl/app/webroot/status_kolejek/query.php?status`
 
-## Функции
+## Features
 
-- 🔍 **JSON API парсинг**: Получает данные через официальный API каждые 11 секунд
-- 📱 **Telegram-бот**: Уведомления и команды через Telegram
-- 💾 **База данных**: SQLite для хранения пользователей и истории
-- 🔔 **Умные уведомления**: Выделяет изменения красным цветом
-- ⏰ **Отслеживание времени**: Показывает время последнего изменения
-- 🚀 **Высокая производительность**: Использует JSON API вместо HTML парсинга
+- 🔍 **JSON API Parsing**: Fetches data through official API every 11 seconds
+- 📱 **Telegram Bot**: Notifications and commands via Telegram
+- 💾 **Database**: SQLite for storing users and history
+- 🔔 **Smart Notifications**: Highlights changes in red
+- ⏰ **Time Tracking**: Shows last change time
+- 🚀 **High Performance**: Uses JSON API instead of HTML parsing
+- 🎫 **Personal Ticket Tracking**: Users can register their ticket numbers for personalized wait time estimates
+- 🇵🇱 **VPN Support**: Docker deployment with Polish VPN for geo-restricted access
 
-## Установка и запуск
+## Installation and Setup
 
-### Предварительные требования
+### Prerequisites
 
-- Go 1.19 или выше
-- Telegram Bot Token (получить у @BotFather)
+- Go 1.23 or higher
+- Telegram Bot Token (get from @BotFather)
+- Docker and Docker Compose (for containerized deployment)
+- SurfShark VPN account (for Docker deployment)
 
-### Установка
+### Local Installation
 
-1. Клонируйте репозиторий:
+1. Clone the repository:
 ```bash
 git clone <repository-url>
 cd karta
 ```
 
-2. Установите зависимости:
+2. Install dependencies:
 ```bash
 go mod download
 ```
 
-3. Создайте файл `.env` на основе `.env.example`:
+3. Create `.env` file based on `.env.example`:
 ```bash
 cp .env.example .env
 ```
 
-4. Добавьте ваш Telegram Bot Token в `.env`:
+4. Add your Telegram Bot Token to `.env`:
 ```bash
 TELEGRAM_BOT_TOKEN=your_actual_bot_token_here
 ```
 
-### Получение Telegram Bot Token
+### Docker Installation (Recommended)
 
-1. Найдите @BotFather в Telegram
-2. Отправьте команду `/newbot`
-3. Следуйте инструкциям для создания бота
-4. Скопируйте полученный токен
-
-### Запуск
-
+1. Copy the environment file:
 ```bash
-# Установите переменную окружения
+cp .env.example .env
+```
+
+2. Fill in the variables in `.env`:
+```bash
+# Telegram Bot Token
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+
+# SurfShark VPN Credentials
+SURFSHARK_USER=your_surfshark_email
+SURFSHARK_PASSWORD=your_surfshark_password
+```
+
+3. Create data directory:
+```bash
+mkdir -p data
+```
+
+4. Build and run:
+```bash
+docker compose up -d
+```
+
+### Getting Telegram Bot Token
+
+1. Find @BotFather in Telegram
+2. Send `/newbot` command
+3. Follow instructions to create a bot
+4. Copy the received token
+
+### Running
+
+#### Local Run
+```bash
+# Set environment variable
 export TELEGRAM_BOT_TOKEN="your_bot_token_here"
 
-# Запустите приложение
+# Run the application
 go run cmd/main.go
 
-# Или скомпилируйте и запустите
+# Or compile and run
 go build -o karta cmd/main.go
 ./karta
 ```
 
-## Использование
+#### Docker Run
+```bash
+# Start services
+docker compose up -d
 
-1. Найдите вашего бота в Telegram
-2. Отправьте команду `/start`
-3. Получите текущую информацию о очереди
-4. Бот автоматически будет присылать обновления при изменениях
+# View logs
+docker compose logs -f karta-bot
 
-## Структура проекта
+# Stop services
+docker compose down
+```
+
+## Usage
+
+1. Find your bot in Telegram
+2. Send `/start` command
+3. Get current queue information
+4. **Register your ticket**: Send your ticket number (e.g., `K222`) to get personalized wait time estimates
+5. Bot will automatically send updates when changes occur
+
+### Ticket Tracking Feature
+
+- Send your ticket number in format `K123` to register it
+- Bot will calculate and show your estimated wait time
+- Wait time calculation: `(your_ticket_number - current_ticket) × average_service_time ÷ number_of_workplaces`
+- Example: If current ticket is K065, your ticket is K222, average service time is 6 min, and there are 3 workplaces:
+  - Wait time = (222 - 65) × 6 ÷ 3 = 314 minutes = 5h 14min
+
+## Project Structure
 
 ```
 karta/
 ├── cmd/
-│   └── main.go                 # Точка входа приложения
+│   └── main.go                 # Application entry point
 ├── internal/
 │   ├── bot/
-│   │   └── telegram_bot.go     # Telegram бот
+│   │   └── telegram_bot.go     # Telegram bot
 │   ├── database/
-│   │   └── sqlite.go           # Работа с SQLite
+│   │   └── sqlite.go           # SQLite operations
 │   ├── models/
-│   │   └── queue.go            # Модели данных
+│   │   └── queue.go            # Data models
 │   └── parser/
-│       └── queue_parser.go     # Парсер HTML
-├── .env.example                # Пример переменных окружения
-├── go.mod                      # Go модуль
-└── README.md                   # Документация
+│       └── queue_parser.go     # JSON API parser
+├── docker-compose.yml          # Docker Compose configuration
+├── Dockerfile                  # Docker build configuration
+├── .env.example                # Environment variables example
+├── go.mod                      # Go module
+└── README.md                   # Documentation
 ```
 
-## Отслеживаемые данные
+## Tracked Data
 
-Приложение отслеживает следующие поля очереди "odbiór karty":
-- Обслужено клиентов
-- Клиентов ожидает
-- Рабочих станций
-- Последний билет
-- Осталось билетов
-- Статус очереди
+The application tracks the following fields for the "odbiór karty" queue:
+- Served clients
+- Waiting clients
+- Number of workplaces
+- Last ticket number
+- Tickets left
+- Queue status
+- Average service time
+- Average wait time
 
-**Примечание**: Поля "Среднее время обслуживания" и "Среднее время ожидания" исключены из сравнения согласно требованиям.
+## Bot Commands
 
-## Команды бота
+- `/start` - Registration and get current queue data
+- `K123` - Register your ticket number for personalized tracking
 
-- `/start` - Регистрация и получение текущих данных очереди
+## Technical Details
 
-## Технические детали
+- **Update interval**: 11 seconds
+- **Database**: SQLite (file `karta.db` or `/data/karta.db` in Docker)
+- **Message format**: Telegram MarkdownV2
+- **Error handling**: Logging and graceful shutdown
+- **History cleanup**: Automatic cleanup of data older than 7 days
+- **SSL handling**: Bypasses SSL verification for problematic certificates
+- **VPN**: Uses SurfShark VPN for Polish IP address in Docker deployment
 
-- **Интервал обновления**: 11 секунд
-- **База данных**: SQLite (файл `karta.db`)
-- **Формат сообщений**: Telegram MarkdownV2
-- **Обработка ошибок**: Логирование и graceful shutdown
-- **Очистка истории**: Автоматическая очистка данных старше 7 дней
+## Docker Monitoring
 
-## Логирование
+```bash
+# Check container status
+docker compose ps
 
-Приложение ведет подробные логи:
-- Статус парсинга данных
-- Изменения в очереди
-- Статистика пользователей
-- Ошибки и предупреждения
+# View bot logs
+docker compose logs karta-bot
 
-## Остановка приложения
+# View VPN logs
+docker compose logs surfshark
 
-Для корректной остановки используйте `Ctrl+C`. Приложение выполнит graceful shutdown всех компонентов.
+# Check IP address (should be Polish)
+docker compose exec karta-bot wget -qO- ifconfig.me
+
+# Restart services
+docker compose restart
+```
+
+## Logging
+
+The application maintains detailed logs:
+- Data parsing status
+- Queue changes
+- User statistics
+- Errors and warnings
+- Ticket registration events
+
+## Stopping the Application
+
+### Local
+Use `Ctrl+C` for graceful shutdown of all components.
+
+### Docker
+```bash
+docker compose down
+```
+
+## Troubleshooting
+
+### VPN Issues
+- Check logs: `docker compose logs surfshark`
+- Verify SurfShark credentials in `.env`
+- Ensure Polish IP: `docker compose exec karta-bot wget -qO- ifconfig.me`
+
+### Bot Issues
+- Check logs: `docker compose logs karta-bot`
+- Verify Telegram Bot Token in `.env`
+- Ensure bot is not blocked by users
+
+### SSL Issues
+The application automatically bypasses SSL verification for the DUW website. If you encounter SSL errors, they should be automatically handled.

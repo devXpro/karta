@@ -16,11 +16,19 @@ import (
 )
 
 const (
-	DatabasePath           = "karta.db"
+	DefaultDatabasePath    = "karta.db"
 	MonitoringInterval     = 11 * time.Second
 	HistoryCleanupInterval = 24 * time.Hour
 	HistoryRetentionPeriod = 7 * 24 * time.Hour // Keep 7 days of history
 )
+
+// getDatabasePath returns database path from environment or default
+func getDatabasePath() string {
+	if path := os.Getenv("DATABASE_PATH"); path != "" {
+		return path
+	}
+	return DefaultDatabasePath
+}
 
 // Application represents the main application
 type Application struct {
@@ -43,7 +51,7 @@ func main() {
 	}
 
 	// Initialize database
-	db, err := database.NewDatabase(DatabasePath)
+	db, err := database.NewDatabase(getDatabasePath())
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}

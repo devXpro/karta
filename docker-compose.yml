@@ -13,38 +13,14 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       DATABASE_PATH: /data/karta.db
       USE_SOCKS5_PROXY: "true"
-      SOCKS5_PROXY_URL: "karta-surfshark:1080"
+      SOCKS5_PROXY_HOST: ${SOCKS5_PROXY_HOST}
+      SOCKS5_PROXY_PORT: ${SOCKS5_PROXY_PORT}
+      SOCKS5_PROXY_USER: ${SOCKS5_PROXY_USER}
+      SOCKS5_PROXY_PASSWORD: ${SOCKS5_PROXY_PASSWORD}
     volumes:
       - ./data:/data
-    depends_on:
-      - karta-surfshark
     healthcheck:
       test: ["CMD", "pgrep", "karta"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  karta-surfshark:
-    image: ilteoood/docker-surfshark
-    container_name: karta-surfshark
-    environment:
-      - SURFSHARK_USER=${SURFSHARK_USER}
-      - SURFSHARK_PASSWORD=${SURFSHARK_PASSWORD}
-      - SURFSHARK_COUNTRY=pl
-      - SURFSHARK_CITY=waw
-      - CONNECTION_TYPE=gdn
-      - LAN_NETWORK=192.168.0.0/24
-      - ENABLE_SOCKS_SERVER=true
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun
-    restart: unless-stopped
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"

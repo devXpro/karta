@@ -58,13 +58,24 @@ func NewQueueParser() *QueueParser {
 
 	// Check if SOCKS5 proxy should be used
 	useSocks5 := os.Getenv("USE_SOCKS5_PROXY")
-	socks5URL := os.Getenv("SOCKS5_PROXY_URL")
+	proxyHost := os.Getenv("SOCKS5_PROXY_HOST")
+	proxyPort := os.Getenv("SOCKS5_PROXY_PORT")
+	proxyUser := os.Getenv("SOCKS5_PROXY_USER")
+	proxyPassword := os.Getenv("SOCKS5_PROXY_PASSWORD")
 
-	if useSocks5 == "true" && socks5URL != "" {
-		log.Printf("Configuring SOCKS5 proxy: %s", socks5URL)
+	if useSocks5 == "true" && proxyHost != "" && proxyPort != "" {
+		log.Printf("Configuring SOCKS5 proxy: %s:%s", proxyHost, proxyPort)
 
-		// Parse SOCKS5 proxy URL
-		proxyURL, err := url.Parse("socks5://" + socks5URL)
+		// Create SOCKS5 proxy URL with authentication
+		var proxyURL *url.URL
+		var err error
+
+		if proxyUser != "" && proxyPassword != "" {
+			proxyURL, err = url.Parse(fmt.Sprintf("socks5://%s:%s@%s:%s", proxyUser, proxyPassword, proxyHost, proxyPort))
+		} else {
+			proxyURL, err = url.Parse(fmt.Sprintf("socks5://%s:%s", proxyHost, proxyPort))
+		}
+
 		if err != nil {
 			log.Printf("Failed to parse SOCKS5 proxy URL: %v", err)
 		} else {

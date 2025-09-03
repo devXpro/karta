@@ -13,20 +13,20 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       DATABASE_PATH: /data/karta.db
       USE_SOCKS5_PROXY: "true"
-      SOCKS5_PROXY_URL: "surfshark:1080"
+      SOCKS5_PROXY_URL: "karta-surfshark:1080"
     volumes:
       - ./data:/data
     depends_on:
-      - surfshark
+      - karta-surfshark
     healthcheck:
       test: ["CMD", "pgrep", "karta"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  surfshark:
+  karta-surfshark:
     image: ilteoood/docker-surfshark
-    container_name: surfshark
+    container_name: karta-surfshark
     environment:
       - SURFSHARK_USER=${SURFSHARK_USER}
       - SURFSHARK_PASSWORD=${SURFSHARK_PASSWORD}

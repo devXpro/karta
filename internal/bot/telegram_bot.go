@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"karta/internal/database"
 	"karta/internal/models"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // TelegramBot represents the Telegram bot instance
@@ -68,7 +71,12 @@ func (b *TelegramBot) handleMessage(message *tgbotapi.Message) {
 		b.handleStartCommand(chatID, username)
 	default:
 		if message.Text != "" {
-			b.sendMessage(chatID, "Используйте команду /start для получения информации о очереди.")
+			// Check if message matches ticket pattern (K followed by numbers)
+			if b.isTicketNumber(message.Text) {
+				b.handleTicketNumber(chatID, username, message.Text)
+			} else {
+				b.sendMessage(chatID, "Используйте команду /start для получения информации о очереди\\.\n\nЧтобы отслеживать ваш билет, отправьте номер билета \\(например: K222\\)\\.")
+			}
 		}
 	}
 }
@@ -95,8 +103,20 @@ func (b *TelegramBot) handleStartCommand(chatID int64, username string) {
 		return
 	}
 
-	// Send current queue data
-	message := queueData.FormatTelegramMessage(nil)
+	// Get user's ticket number if they have one
+	userTicket, err := b.db.GetUserTicketNumber(chatID)
+	if err != nil {
+		log.Printf("Failed to get user ticket number: %v", err)
+		userTicket = "" // Continue without ticket info
+	}
+
+	// Send current queue data with user's ticket info if available
+	var message string
+	if userTicket != "" {
+		message = queueData.FormatTelegramMessageWithTicket(nil, userTicket)
+	} else {
+		message = queueData.FormatTelegramMessage(nil)
+	}
 	msgID := b.sendMessage(chatID, message)
 
 	// Store message ID for future updates
@@ -135,6 +155,19 @@ func (b *TelegramBot) updateMessage(chatID int64, messageID int, text string) er
 	return nil
 }
 
+// deleteMessage deletes a message
+func (b *TelegramBot) deleteMessage(chatID int64, messageID int) error {
+	msg := tgbotapi.NewDeleteMessage(chatID, messageID)
+
+	_, err := b.api.Send(msg)
+	if err != nil {
+		log.Printf("Failed to delete message %d for chat %d: %v", messageID, chatID, err)
+		return err
+	}
+
+	return nil
+}
+
 // BroadcastQueueUpdate sends queue updates to all active users
 func (b *TelegramBot) BroadcastQueueUpdate(queueData *models.QueueData, changes *models.QueueChanges) error {
 	users, err := b.db.GetActiveUsers()
@@ -147,13 +180,19 @@ func (b *TelegramBot) BroadcastQueueUpdate(queueData *models.QueueData, changes 
 		return nil
 	}
 
-	message := queueData.FormatTelegramMessage(changes)
-
 	log.Printf("Broadcasting queue update to %d users", len(users))
 
 	var successCount, errorCount int
 
 	for _, user := range users {
+		// Create personalized message with user's ticket if they have one
+		var message string
+		if user.TicketNumber != "" {
+			message = queueData.FormatTelegramMessageWithTicket(changes, user.TicketNumber)
+		} else {
+			message = queueData.FormatTelegramMessage(changes)
+		}
+
 		// Try to update existing message first
 		if msgIDInterface, exists := b.userMsgs.Load(user.ChatID); exists {
 			if msgID, ok := msgIDInterface.(int); ok {
@@ -211,6 +250,66 @@ func (b *TelegramBot) getStoredMessageCount() int {
 		return true
 	})
 	return count
+}
+
+// isTicketNumber checks if the message matches ticket pattern (K followed by numbers)
+func (b *TelegramBot) isTicketNumber(text string) bool {
+	// Pattern: K followed by one or more digits
+	pattern := `^[Kk]\d+$`
+	matched, _ := regexp.MatchString(pattern, strings.TrimSpace(text))
+	return matched
+}
+
+// handleTicketNumber processes ticket number input from user
+func (b *TelegramBot) handleTicketNumber(chatID int64, username, ticketNumber string) {
+	// Normalize ticket number (uppercase K)
+	normalizedTicket := strings.ToUpper(strings.TrimSpace(ticketNumber))
+
+	// Add user to database if not exists
+	if err := b.db.AddUser(chatID, username); err != nil {
+		log.Printf("Failed to add user to database: %v", err)
+		b.sendMessage(chatID, "Произошла ошибка при регистрации\\. Попробуйте позже\\.")
+		return
+	}
+
+	// Save ticket number for user
+	if err := b.db.SetUserTicketNumber(chatID, normalizedTicket); err != nil {
+		log.Printf("Failed to set ticket number for user %d: %v", chatID, err)
+		b.sendMessage(chatID, "Произошла ошибка при сохранении номера билета\\. Попробуйте позже\\.")
+		return
+	}
+
+	log.Printf("User %s (ID: %d) registered ticket: %s", username, chatID, normalizedTicket)
+
+	// Get latest queue data and show with user's wait time
+	queueData, err := b.db.GetLatestQueueData()
+	if err != nil {
+		log.Printf("Failed to get latest queue data: %v", err)
+		b.sendMessage(chatID, fmt.Sprintf("Билет %s сохранен\\! Данные о очереди будут доступны после первого обновления\\.", normalizedTicket))
+		return
+	}
+
+	// Delete old message if exists
+	if msgIDInterface, exists := b.userMsgs.Load(chatID); exists {
+		if msgID, ok := msgIDInterface.(int); ok {
+			log.Printf("Deleting old message %d for user %d", msgID, chatID)
+			if err := b.deleteMessage(chatID, msgID); err != nil {
+				log.Printf("Failed to delete old message: %v", err)
+			} else {
+				log.Printf("Successfully deleted old message %d", msgID)
+			}
+			b.userMsgs.Delete(chatID)
+		}
+	}
+
+	// Format message with user's ticket info
+	message := queueData.FormatTelegramMessageWithTicket(nil, normalizedTicket)
+
+	// Send new message and store its ID for future updates
+	msgID := b.sendMessage(chatID, message)
+	if msgID != 0 {
+		b.userMsgs.Store(chatID, msgID)
+	}
 }
 
 // Stop gracefully stops the bot

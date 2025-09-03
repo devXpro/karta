@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -83,6 +84,11 @@ func CompareQueues(previous, current *QueueData) *QueueChanges {
 
 // FormatTelegramMessage formats queue data for Telegram message
 func (q *QueueData) FormatTelegramMessage(changes *QueueChanges) string {
+	return q.FormatTelegramMessageWithTicket(changes, "")
+}
+
+// FormatTelegramMessageWithTicket formats queue data for Telegram message with user ticket info
+func (q *QueueData) FormatTelegramMessageWithTicket(changes *QueueChanges, userTicket string) string {
 	var builder strings.Builder
 
 	builder.WriteString("🏢 *Очередь: odbiór karty \\(Wrocław\\)*\n\n")
@@ -106,6 +112,26 @@ func (q *QueueData) FormatTelegramMessage(changes *QueueChanges) string {
 	formatField("Последний билет", q.LastTicket, "last_ticket")
 	formatField("Осталось билетов", q.TicketsLeft, "tickets_left")
 	formatField("Статус очереди", q.Status, "status")
+
+	// Show user's estimated wait time if ticket is provided
+	if userTicket != "" {
+		waitTime, err := q.CalculateWaitTime(userTicket)
+		if err == nil && waitTime > 0 {
+			hours := waitTime / 60
+			minutes := waitTime % 60
+
+			var timeStr string
+			if hours > 0 {
+				timeStr = fmt.Sprintf("%d ч\\. %d мин\\.", hours, minutes)
+			} else {
+				timeStr = fmt.Sprintf("%d мин\\.", minutes)
+			}
+
+			builder.WriteString(fmt.Sprintf("\n🎫 *Ваш билет %s \\- осталось:* %s", escapeMarkdown(userTicket), timeStr))
+		} else if err == nil && waitTime == 0 {
+			builder.WriteString(fmt.Sprintf("\n🎫 *Ваш билет %s \\- ваша очередь\\!*", escapeMarkdown(userTicket)))
+		}
+	}
 
 	// Show last sync time and last change time
 	builder.WriteString(fmt.Sprintf("\n🔄 *Синхронизация:* %s", q.LastUpdated.Format("15:04:05")))
@@ -165,4 +191,75 @@ func (q *QueueData) Clone() *QueueData {
 		LastUpdated:    q.LastUpdated,
 		LastChanged:    q.LastChanged,
 	}
+}
+
+// CalculateWaitTime calculates estimated wait time for a user's ticket
+func (q *QueueData) CalculateWaitTime(userTicket string) (int, error) {
+	if userTicket == "" || q.LastTicket == "" {
+		return 0, fmt.Errorf("missing ticket information")
+	}
+
+	// Extract numbers from ticket strings (e.g., "K222" -> 222)
+	userNum, err := extractTicketNumber(userTicket)
+	if err != nil {
+		return 0, fmt.Errorf("invalid user ticket format: %w", err)
+	}
+
+	currentNum, err := extractTicketNumber(q.LastTicket)
+	if err != nil {
+		return 0, fmt.Errorf("invalid current ticket format: %w", err)
+	}
+
+	// Calculate tickets remaining
+	ticketsRemaining := userNum - currentNum
+	if ticketsRemaining <= 0 {
+		return 0, nil // User's turn has passed or is current
+	}
+
+	// Parse average service time (e.g., "6 min." -> 6)
+	avgServiceMinutes, err := parseServiceTime(q.AvgServiceTime)
+	if err != nil {
+		return 0, fmt.Errorf("invalid service time format: %w", err)
+	}
+
+	// Calculate estimated wait time
+	estimatedWaitMinutes := ticketsRemaining * avgServiceMinutes
+
+	return estimatedWaitMinutes, nil
+}
+
+// extractTicketNumber extracts the numeric part from a ticket string
+func extractTicketNumber(ticket string) (int, error) {
+	// Remove non-digit characters and parse
+	numStr := ""
+	for _, char := range ticket {
+		if char >= '0' && char <= '9' {
+			numStr += string(char)
+		}
+	}
+
+	if numStr == "" {
+		return 0, fmt.Errorf("no number found in ticket: %s", ticket)
+	}
+
+	return strconv.Atoi(numStr)
+}
+
+// parseServiceTime extracts minutes from service time string
+func parseServiceTime(serviceTime string) (int, error) {
+	// Extract number from strings like "6 min." or "5 minutes"
+	numStr := ""
+	for _, char := range serviceTime {
+		if char >= '0' && char <= '9' {
+			numStr += string(char)
+		} else if numStr != "" {
+			break // Stop at first non-digit after finding digits
+		}
+	}
+
+	if numStr == "" {
+		return 0, fmt.Errorf("no number found in service time: %s", serviceTime)
+	}
+
+	return strconv.Atoi(numStr)
 }

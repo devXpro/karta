@@ -7,8 +7,9 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"karta/internal/models"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // Database represents the SQLite database connection and operations
@@ -18,11 +19,12 @@ type Database struct {
 
 // User represents a Telegram user in the database
 type User struct {
-	ID       int64     `json:"id"`
-	ChatID   int64     `json:"chat_id"`
-	Username string    `json:"username"`
-	JoinedAt time.Time `json:"joined_at"`
-	Active   bool      `json:"active"`
+	ID           int64     `json:"id"`
+	ChatID       int64     `json:"chat_id"`
+	Username     string    `json:"username"`
+	JoinedAt     time.Time `json:"joined_at"`
+	Active       bool      `json:"active"`
+	TicketNumber string    `json:"ticket_number"` // User's queue ticket number (e.g., "K222")
 }
 
 // QueueHistory represents historical queue data
@@ -63,7 +65,8 @@ func (d *Database) initTables() error {
 			chat_id INTEGER UNIQUE NOT NULL,
 			username TEXT,
 			joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			active BOOLEAN DEFAULT 1
+			active BOOLEAN DEFAULT 1,
+			ticket_number TEXT DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS queue_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +103,7 @@ func (d *Database) AddUser(chatID int64, username string) error {
 
 // GetActiveUsers returns all active users
 func (d *Database) GetActiveUsers() ([]User, error) {
-	query := `SELECT id, chat_id, username, joined_at, active FROM users WHERE active = 1`
+	query := `SELECT id, chat_id, username, joined_at, active, ticket_number FROM users WHERE active = 1`
 
 	rows, err := d.db.Query(query)
 	if err != nil {
@@ -112,14 +115,19 @@ func (d *Database) GetActiveUsers() ([]User, error) {
 	for rows.Next() {
 		var user User
 		var username sql.NullString
+		var ticketNumber sql.NullString
 
-		err := rows.Scan(&user.ID, &user.ChatID, &username, &user.JoinedAt, &user.Active)
+		err := rows.Scan(&user.ID, &user.ChatID, &username, &user.JoinedAt, &user.Active, &ticketNumber)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
 
 		if username.Valid {
 			user.Username = username.String
+		}
+
+		if ticketNumber.Valid {
+			user.TicketNumber = ticketNumber.String
 		}
 
 		users = append(users, user)
@@ -210,4 +218,32 @@ func (d *Database) GetUserCount() (int, error) {
 	}
 
 	return count, nil
+}
+
+// SetUserTicketNumber sets the ticket number for a user
+func (d *Database) SetUserTicketNumber(chatID int64, ticketNumber string) error {
+	query := `UPDATE users SET ticket_number = ? WHERE chat_id = ?`
+
+	_, err := d.db.Exec(query, ticketNumber, chatID)
+	if err != nil {
+		return fmt.Errorf("failed to set ticket number: %w", err)
+	}
+
+	return nil
+}
+
+// GetUserTicketNumber gets the ticket number for a user
+func (d *Database) GetUserTicketNumber(chatID int64) (string, error) {
+	query := `SELECT ticket_number FROM users WHERE chat_id = ? AND active = 1`
+
+	var ticketNumber string
+	err := d.db.QueryRow(query, chatID).Scan(&ticketNumber)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // User not found or not active
+		}
+		return "", fmt.Errorf("failed to get ticket number: %w", err)
+	}
+
+	return ticketNumber, nil
 }
